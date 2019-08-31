@@ -55,10 +55,11 @@ int main() {
   int lane = 1;
   
   // reference velocity
-  double ref_vel = 49.5; //mph
+  double ref_vel = 0; //mph
+  double max_acc = 5; //mph
 
   h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy, &lane]
+               &map_waypoints_dx,&map_waypoints_dy, &lane, &max_acc]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -99,7 +100,33 @@ int main() {
 
           json msgJson;
 
+          if (prev_size>0){
+            car_s = end_path_s;
+          }
+          bool too_close = false;
           
+          for (int i=0; i<sensor_fusion.size(); i++){
+            float d = sensor_fusion[i][6];
+            // check the car is in the same lane
+            if (d<(2+4*lane+2) && d>(2+4*lane-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+              
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+              
+              // if s values greater than mine and s gap
+              if ((check_car_s > car_s) && ((check_car_s - car_s) < 30.0)){
+                too_close = true; // lowering velocity
+              }
+            }
+          }
+          if (too_close){
+            ref_vel -= max_acc * 2.237 * 0.02;
+          }else if (ref_vel < 49.5){
+            ref_vel += max_acc * 2.237 * 0.02;
+          }
 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
