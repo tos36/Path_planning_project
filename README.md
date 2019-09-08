@@ -181,16 +181,172 @@ if (too_close){
 ```
 ### 3. Lane change algorithm
 
-If the distance to the following vehicle is lower than 60m, the state changes and the car prepare to lane change.
+- Lane change preparation
 
+	If the distance to the following vehicle is lower than 60m, the state changes and the car prepare to lane change.
+
+
+	```c++
+
+	bool lc_prep = false; // flag to lane change preparation
+	if((follow_dist_ego) < 60.0){
+		    lc_prep = true;
+		  }
+
+	```
+
+- Checking safty of changing lane.
+
+	To chack the safety of changing lane, I use TTC (time to collision) and the distante to the car around the vehicle.
+	
+	```c++
+	
+	// check the car is in the left lane
+            if (d<(2+4*(lane-1)+2) && d>(2+4*(lane-1)-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+              
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+              
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              
+	      ...
+
+              // check if there's enough space to lane change
+              double ttc = gap / (check_speed - car_speed_mps);
+              bool ttc_safe =  ( ttc > 2.5) || (ttc < -2.5);
+              left_safe &= ttc_safe;
+              
+              bool dist_safe = (gap > 10) || (gap < -10);
+              left_safe &= dist_safe;
+            }
+	
+	```
+	
+	I set minimum TTC as 2.5 sec, since it takes around 2 sec to change lane.
+	We should care the distance to side collision, even if the TTC is enough high (for example the car in next lane cruise exact same velocity as ego vehicle.) I sate the minimum distance to 10m.
+	I tuned these parameters in the simulator and those values are enough to change lane safely and effectively.
+	
+	
+
+- Choosing lane (cost function)
+	
+	While preparating lane change, the car compare the distance to following cars for each lane. This means that the cost function is distance to the following car.
+	
+	The distance is calcurated in each time using sensor fusion result. If there is no car on the lane, the value is set as high value. for example...
+	
+	```c++
+	
+	 // distance to following car
+          double follow_dist_ego = 999; // on ego lane
+          double follow_dist_l = 900; // on left lane
+          double follow_dist_r = 900; // on right lane
+          double follow_dist_ll = 900; // on left lane
+          double follow_dist_rr = 900; // on right lane
+          
+          double car_speed_mps = car_speed / 2.24;
+          
+          for (int i=0; i<sensor_fusion.size(); i++){
+            float d = sensor_fusion[i][6];
+            
+            // check the car is in the same lane
+            if (d<(2+4*lane+2) && d>(2+4*lane-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+              
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              if ((gap > 0)&&(gap < follow_dist_ego)){
+                follow_dist_ego = gap;
+              }
+            }
+	
+	```
+	
+	I set the initial value for the ego lane higer than others, since the car don't have to change lane if there's no car in the front.
+	
+	The car changes the lane which has the longest distance to the following car. If the target lane is safe, the state changes and the car execute lane change.
+	
+	```c++
+	
+	...
+	}else if (state==2){       
+            
+            if(right_safe && (follow_dist_r > follow_dist_ego + 10) && (follow_dist_r > follow_dist_l)){
+              lane += 1;
+              state = 3;
+              lc_prep = false;
+            }else if(left_safe && (follow_dist_l > follow_dist_ego + 10)){
+              lane -= 1;
+              state = 3;
+              lc_prep = false;
+            }  
+	  ...
+	
+	```
+	
+	Here I add 10m to "follow_dist_ego" to add hysteresis. This will help the car to repeat lane changing frequently.
+	
+	When vehicle is in left-end or right end-lane, the car also check the free space of next next lane. Without this function the car sometimes stuck when the following cars in ego lane and next lane are both slow.
+
+
+- Lane change execution
+
+	To avoid start another lane change while changing lane, the state remains "Lane changing" until the car position is center of the target lane. After it's dane, the state change to "lane keep".
+	
+	```c++
+	
+	...
+	 }else if(state==3){
+	    bool lc_done;
+	    lc_done = (car_d<(2+4*lane+0.5) && car_d>(2+4*lane-0.5));
+
+            ...
+	    
+	    if(lc_done){
+	      state = 1;
+	    }
+	  }
+	
+	```
+	
+### 4. Tragectory generation
+
+I use a spline to create smooth tragecory. The waypoints are calcurated in 30m-interval and a spline is fitted to them. 
+
+If the interval is too high, the lane changing is going to be too slow. If it's too low, the lane change is going to be too sudden and violate the jerk limitation. I test with the simulater and 30m is enough to meet the requirement of the project.
 
 ```c++
 
-bool lc_prep = false; // flag to lane change preparation
-if((follow_dist_ego) < 60.0){
-            lc_prep = true;
-          }
+#include "spline.h"
+
+...
+
+vector<double> next_wp0 = getXY(car_s+30, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+vector<double> next_wp1 = getXY(car_s+60, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+vector<double> next_wp2 = getXY(car_s+90, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+ptsx.push_back(next_wp0[0]);
+ptsx.push_back(next_wp1[0]);
+ptsx.push_back(next_wp2[0]);
+
+ptsy.push_back(next_wp0[1]);
+ptsy.push_back(next_wp1[1]);
+ptsy.push_back(next_wp2[1]);
+
+...
+
+// create a spline
+tk::spline s;
+s.set_points(ptsx, ptsy);
+
+...
 
 ```
-
-
