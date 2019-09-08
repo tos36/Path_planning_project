@@ -122,5 +122,52 @@ A really helpful resource for doing this project and creating smooth trajectorie
 
 ## Explanation & Reflection
 
+In this section, I explain following  details of the code.
+1. Finite state machine
+2. Crusing & following a car on the ego lane
+3. Lane change algorithm
+4. Tragectory generation
+
+### 1. Finite state machine
+The state machie has following four state.
+
+0. Inital state
+
+	In this project ego car starts with stopping. To avoid lane changing with low speed, the machine remains this state until the velocity of ego vehicle exceed 40mph.
+	
+1. Lane keep
+
+	In this state, the car keep current lane.
+	
+2. Prepare to change lane
+
+	If the distance to following car is lower than 60m in s-coordinates, the car's state change to this state. In this state, the car prepare to change lane. Ditails are explained in section 3 "Lane change algorithm"
+
+3. Lane change
+
+	When the car decide to execute the lane change, the car's state change to this state. After lane change is completed, the state change to "Lane keep state". I set this state to avoid executing another lane change while changing lane.
+
+### 2. Crusing & following a car on the ego lane
+
+While crusing (there's no car ahead) the car should keep the maximum speed on the road and not exeed it. If there's a car in front of the ego vehicle, it should follow the car and not hit it.
+
+```c++
+
+double ref_vel = 0; //mph, target velocity
+double max_acc = 5; //mph, max accelaration
+bool too_close = false;
+if((follow_dist_ego) < 30.0){ // if the distance to following car is lower than 30m
+	too_close = true; // change flag to lowering velocity
+}
+if (too_close){
+	// lowering velocity within max accelaration
+	ref_vel -= max_acc * 2.237 * 0.02;
+}else if (ref_vel < 49.5){
+	// keep lane and acceralate to ref_vel within max accelaration
+	ref_vel += max_acc * 2.237 * 0.02;
+}
+
+```
+
 
 
