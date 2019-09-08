@@ -114,8 +114,8 @@ int main() {
           if (prev_size>0){
             car_s = end_path_s;
           }
-          bool too_close = false;
-          bool lc_prep = false;
+          bool too_close = false; // flag to decelarate
+          bool lc_prep = false; // flag to lane change preparation
           bool left_safe = true;
           bool right_safe = true;
           
@@ -129,6 +129,7 @@ int main() {
           
           for (int i=0; i<sensor_fusion.size(); i++){
             float d = sensor_fusion[i][6];
+            
             // check the car is in the same lane
             if (d<(2+4*lane+2) && d>(2+4*lane-2)){
               double vx = sensor_fusion[i][3];
@@ -156,7 +157,7 @@ int main() {
               
               // find a gap to a following vehicle
               double gap = check_car_s - car_s;
-              if ((gap > 0)&&(gap < follow_dist_ego)){
+              if ((gap > 0)&&(gap < follow_dist_l)){
                 follow_dist_l = gap;
               }
 
@@ -180,7 +181,7 @@ int main() {
               
               // find a gap to a following vehicle
               double gap = check_car_s - car_s;
-              if ((gap > 0)&&(gap < follow_dist_ego)){
+              if ((gap > 0)&&(gap < follow_dist_r)){
                 follow_dist_r = gap;
               }
 
@@ -204,7 +205,7 @@ int main() {
               
               // find a gap to a following vehicle
               double gap = check_car_s - car_s;
-              if ((gap > 0)&&(gap < follow_dist_ego)){
+              if ((gap > 0)&&(gap < follow_dist_ll)){
                 follow_dist_ll = gap;
               }
             }
@@ -220,7 +221,7 @@ int main() {
               
               // find a gap to a following vehicle
               double gap = check_car_s - car_s;
-              if ((gap > 0)&&(gap < follow_dist_ego)){
+              if ((gap > 0)&&(gap < follow_dist_rr)){
                 follow_dist_rr = gap;
               }
             }
@@ -237,7 +238,7 @@ int main() {
           }
           
           if (too_close){
-            // move to lane change preparation
+            // decelarate
             ref_vel -= max_acc * 2.237 * 0.02;
           }else if (ref_vel < 49.5){
             // keep lane and acceralate to ref_vel
@@ -271,12 +272,12 @@ int main() {
               lane += 1;
               state = 3;
               lc_prep = false;
-              std::cout << "LC to Right" << std::endl;
+              // std::cout << "LC to Right" << std::endl;
             }else if(left_safe && (follow_dist_l > follow_dist_ego + 10)){
               lane -= 1;
               state = 3;
               lc_prep = false;
-              std::cout << "LC to Left" << std::endl;
+              // std::cout << "LC to Left" << std::endl;
             }
             
           }else if(state==3){
@@ -387,8 +388,8 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
-          std::cout << state << " lane: " << lane << " left_safe: " <<  left_safe << " right_safe: " <<  right_safe << std::endl;
-          std::cout << follow_dist_ll << ", "  << follow_dist_l << ", " << follow_dist_ego << ", " << follow_dist_r << ", " << follow_dist_rr << std::endl;
+          // std::cout << state << " lane: " << lane << " left_safe: " <<  left_safe << " right_safe: " <<  right_safe << std::endl;
+          //  std::cout << follow_dist_ll << ", "  << follow_dist_l << ", " << follow_dist_ego << ", " << follow_dist_r << ", " << follow_dist_rr << std::endl;
           
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
