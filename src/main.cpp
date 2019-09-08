@@ -119,11 +119,12 @@ int main() {
           bool left_safe = true;
           bool right_safe = true;
           
-          double follow_dist_ego = 999;
-          double follow_dist_l = 900;
-          double follow_dist_r = 900;
-          double follow_dist_ll = 900;
-          double follow_dist_rr = 900;
+          // distance to following car
+          double follow_dist_ego = 999; // on ego lane
+          double follow_dist_l = 900; // on left lane
+          double follow_dist_r = 900; // on right lane
+          double follow_dist_ll = 900; // on left lane
+          double follow_dist_rr = 900; // on right lane
           
           double car_speed_mps = car_speed / 2.24;
           
