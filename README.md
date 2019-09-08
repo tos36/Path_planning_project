@@ -146,6 +146,17 @@ The state machie has following four state.
 3. Lane change
 
 	When the car decide to execute the lane change, the car's state change to this state. After lane change is completed, the state change to "Lane keep state". I set this state to avoid executing another lane change while changing lane.
+	
+```c++
+
+// state
+int state = 0;
+// 0: start, accelarating
+// 1: Lane Keeping
+// 2: Lane Change Preparating
+// 3: Lane Changing
+
+```
 
 ### 2. Crusing & following a car on the ego lane
 
@@ -168,6 +179,18 @@ if (too_close){
 }
 
 ```
+### 3. Lane change algorithm
 
+If the distance to the following vehicle is lower than 60m, the state changes and the car prepare to lane change.
+
+
+```c++
+
+bool lc_prep = false; // flag to lane change preparation
+if((follow_dist_ego) < 60.0){
+            lc_prep = true;
+          }
+
+```
 
 
