@@ -352,6 +352,8 @@ s.set_points(ptsx, ptsy);
 
 I tested the algorithm with the simulator and it drives 11 miles withought incident in average. (I tested three times and it drives 9 miles, 15 miles and 10 miles). This meet the requirements of the project. 
 
+![result.png](result.png)
+
 Followings are the list of the possible future work.
 
 - Prediction
