@@ -120,9 +120,9 @@ A really helpful resource for doing this project and creating smooth trajectorie
    - The car is able to smoothly change lanes when it makes sense to do so, such as when behind a slower moving car and an adjacent lane is clear of other traffic.
 
 
-## Explanation & Reflection
+## Explanation of the code
 
-In this section, I explain following  details of the code.
+In this section, I explain following parts of the code.
 1. Finite state machine
 2. Crusing & following a car on the ego lane
 3. Lane change algorithm
@@ -350,3 +350,14 @@ s.set_points(ptsx, ptsy);
 ...
 
 ```
+
+## Reflection & Future work
+
+I tested the algorithm with the simulator and it drives 11 miles withought incident in average. (I tested three times and it drives 9 miles, 15 miles and 10 miles). This meet the requirements of the project. 
+
+Followings are the list of the possible future work.
+
+- Prediction
+	- Sometimes the car can't deal with a sudden cut-in and hit. Prediction algorithm will help the car to detect potential risk and brake in advance.
+- Improving tragectory generation
+	- Sometimes the car slightly out of the lane especially in a curve. This is because the car follow the exact spline. Polynomial fit or some cost function that penalize according to the distance frome the center of the lane.
