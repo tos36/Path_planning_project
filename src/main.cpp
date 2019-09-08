@@ -57,9 +57,16 @@ int main() {
   // reference velocity
   double ref_vel = 0; //mph
   double max_acc = 5; //mph
+  
+  // state
+  int state = 0;
+  // 0: start, accelarating
+  // 1: Lane Keeping
+  // 2: Lane Change Preparating
+  // 3: Lane Changing
 
   h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy, &lane, &max_acc]
+               &map_waypoints_dx,&map_waypoints_dy, &lane, &max_acc, &state]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -99,11 +106,26 @@ int main() {
           int prev_size = previous_path_x.size();
 
           json msgJson;
+          
+          if ((state==0) & (ref_vel > 40)) {
+            state = 1;
+          }
 
           if (prev_size>0){
             car_s = end_path_s;
           }
           bool too_close = false;
+          bool lc_prep = false;
+          bool left_safe = true;
+          bool right_safe = true;
+          
+          double follow_dist_ego = 999;
+          double follow_dist_l = 900;
+          double follow_dist_r = 900;
+          double follow_dist_ll = 900;
+          double follow_dist_rr = 900;
+          
+          double car_speed_mps = car_speed / 2.24;
           
           for (int i=0; i<sensor_fusion.size(); i++){
             float d = sensor_fusion[i][6];
@@ -115,17 +137,156 @@ int main() {
               double check_car_s = sensor_fusion[i][5];
               
               check_car_s += ((double)prev_size * 0.02 * check_speed);
-              
-              // if s values greater than mine and s gap
-              if ((check_car_s > car_s) && ((check_car_s - car_s) < 30.0)){
-                too_close = true; // lowering velocity
+
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              if ((gap > 0)&&(gap < follow_dist_ego)){
+                follow_dist_ego = gap;
               }
             }
+            
+            // check the car is in the left lane
+            if (d<(2+4*(lane-1)+2) && d>(2+4*(lane-1)-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+              
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+              
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              if ((gap > 0)&&(gap < follow_dist_ego)){
+                follow_dist_l = gap;
+              }
+
+              // check if there's enough space to lane change
+              double ttc = gap / (check_speed - car_speed_mps);
+              bool ttc_safe =  ( ttc > 2.5) || (ttc < -2.5);
+              left_safe &= ttc_safe;
+              
+              bool dist_safe = (gap > 10) || (gap < -10);
+              left_safe &= dist_safe;
+            }
+            
+             // check the car is in the right lane
+            if (d<(2+4*(lane+1)+2) && d>(2+4*(lane+1)-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+              
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              if ((gap > 0)&&(gap < follow_dist_ego)){
+                follow_dist_r = gap;
+              }
+
+              // check if there's enough space to lane change
+              double ttc = gap / (check_speed - car_speed_mps);
+              bool ttc_safe =  ( ttc > 2.5) || (ttc < - 2.5);
+              right_safe &= ttc_safe;
+              
+              bool dist_safe = (gap > 10) || (gap < -10);
+              right_safe &= dist_safe;
+            }
+            
+            // check the car is in the left left lane
+            if (d<(2+4*(lane-2)+2) && d>(2+4*(lane-2)-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+              
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+              
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              if ((gap > 0)&&(gap < follow_dist_ego)){
+                follow_dist_ll = gap;
+              }
+            }
+            
+            // check the car is in the right right lane
+            if (d<(2+4*(lane+2)+2) && d>(2+4*(lane+2)-2)){
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx + vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+              
+              check_car_s += ((double)prev_size * 0.02 * check_speed);
+              
+              // find a gap to a following vehicle
+              double gap = check_car_s - car_s;
+              if ((gap > 0)&&(gap < follow_dist_ego)){
+                follow_dist_rr = gap;
+              }
+            }
+            
           }
+          
+          
+          
+          if((follow_dist_ego) < 30.0){
+                   too_close = true; // lowering velocity
+          }
+          if((follow_dist_ego) < 60.0){
+            lc_prep = true;
+          }
+          
           if (too_close){
+            // move to lane change preparation
             ref_vel -= max_acc * 2.237 * 0.02;
           }else if (ref_vel < 49.5){
+            // keep lane and acceralate to ref_vel
             ref_vel += max_acc * 2.237 * 0.02;
+          }
+          
+          // ovewrite the parameters depending on current lane
+          if (lane==2){
+            right_safe = false;
+            follow_dist_r = 0;
+            follow_dist_rr = 0;
+            follow_dist_l = std::max(follow_dist_l, follow_dist_ll);
+          }else if (lane==0){
+            left_safe = false;
+            follow_dist_l = 0;
+            follow_dist_ll = 0;
+            follow_dist_r = std::max(follow_dist_r, follow_dist_rr);
+          }else{
+            follow_dist_rr = 0;
+            follow_dist_ll = 0;
+            // pass
+          }
+          
+          if (state==1){
+            if (lc_prep){
+              state = 2;
+            }
+          }else if (state==2){       
+            
+            if(right_safe && (follow_dist_r > follow_dist_ego + 10) && (follow_dist_r > follow_dist_l)){
+              lane += 1;
+              state = 3;
+              lc_prep = false;
+              std::cout << "LC to Right" << std::endl;
+            }else if(left_safe && (follow_dist_l > follow_dist_ego + 10)){
+              lane -= 1;
+              state = 3;
+              lc_prep = false;
+              std::cout << "LC to Left" << std::endl;
+            }
+            
+          }else if(state==3){
+            bool lc_done;
+            lc_done = (car_d<(2+4*lane+0.5) && car_d>(2+4*lane-0.5));
+            follow_dist_r = 0;
+            follow_dist_l = 0;
+            if(lc_done){
+              state = 1;
+            }
           }
 
           /**
@@ -226,6 +387,8 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
+          std::cout << state << " lane: " << lane << " left_safe: " <<  left_safe << " right_safe: " <<  right_safe << std::endl;
+          std::cout << follow_dist_ll << ", "  << follow_dist_l << ", " << follow_dist_ego << ", " << follow_dist_r << ", " << follow_dist_rr << std::endl;
           
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
